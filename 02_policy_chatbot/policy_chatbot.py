@@ -6,9 +6,10 @@ import pickle
 import os
 from typing import List, Dict, Tuple
 import re
+from numpy.linalg import norm
 
 class PolicyChatbot:
-    def __init__(self, csv_path: str = "bizinfo.csv", model_name: str = "sentence-transformers/xlm-r-100langs-bert-base-nli-stsb-mean-tokens"):
+    def __init__(self, csv_path: str = "gyeonggi_smallbiz_policies_500_소상공인,경기_20250704.csv", model_name: str = "sentence-transformers/xlm-r-100langs-bert-base-nli-stsb-mean-tokens"):
         """
         정책 챗봇 초기화
         
@@ -49,7 +50,7 @@ class PolicyChatbot:
         # 주요 필드들을 결합하여 검색용 텍스트 생성
         fields = [
             str(row['title(공고명)']),
-            str(row['body text (공고내용)']),
+            str(row['body_text(공고내용)']),
             str(row['지원대상']),
             str(row['소관기관']),
             str(row['지원분야(대)']),
@@ -103,55 +104,52 @@ class PolicyChatbot:
             print(f"임베딩 생성 실패: {e}")
             raise
     
-    def search_policies(self, query: str, top_k: int = 5) -> List[Dict]:
-        """
-        정책 검색
-        
-        Args:
-            query: 검색 쿼리
-            top_k: 반환할 결과 수
-            
-        Returns:
-            검색 결과 리스트
-        """
-        try:
-            # 쿼리 전처리
-            processed_query = re.sub(r'[^\w\s가-힣]', ' ', query)
-            processed_query = re.sub(r'\s+', ' ', processed_query).strip()
-            
-            # 쿼리 임베딩 생성
-            query_embedding = self.model.encode([processed_query])
-            faiss.normalize_L2(query_embedding)
-            
-            # 유사도 검색
-            scores, indices = self.index.search(query_embedding.astype('float32'), top_k)
-            
-            # 결과 포맷팅
-            results = []
-            for i, (score, idx) in enumerate(zip(scores[0], indices[0])):
-                if idx < len(self.data):
-                    row = self.data.iloc[idx]
-                    result = {
-                        'rank': i + 1,
-                        'similarity_score': float(score),
-                        'title': row['title(공고명)'],
-                        'body': row['body text (공고내용)'],
-                        'target': row['지원대상'],
-                        'organization': row['소관기관'],
-                        'field_major': row['지원분야(대)'],
-                        'field_minor': row['지원분야(중)'],
-                        'executing_org': row['사업수행기관'],
-                        'contact': row['문의처'],
-                        'period': row['신청기간'],
-                        'application_method': row['사업신청방법설명']
-                    }
-                    results.append(result)
-            
-            return results
-            
-        except Exception as e:
-            print(f"검색 실패: {e}")
-            return []
+    def search_policies(self, query, top_k=5, similarity_threshold=0.0, region_filter=None, target_filter=None, field_filter=None, region_weight=0.3, target_weight=0.2, field_weight=0.2):
+        query_emb = self.model.encode(query)
+        query_emb = np.array(query_emb).reshape(1, -1)
+        # FAISS에서 모든 벡터 가져오기
+        all_embs = self.index.reconstruct_n(0, self.data.shape[0])
+        # 코사인 유사도 계산 (0~1)
+        def cosine_similarity(a, b):
+            return np.dot(a, b) / (norm(a) * norm(b) + 1e-8)
+        sim_scores = np.array([cosine_similarity(query_emb[0], emb) for emb in all_embs])
+        # 내림차순 정렬 인덱스
+        sorted_idx = np.argsort(sim_scores)[::-1]
+        results = []
+        for idx in sorted_idx:
+            row = self.data.iloc[idx]
+            # 하드 필터 적용
+            if region_filter and region_filter not in str(row.get('소관기관', '')):
+                continue
+            if target_filter and target_filter not in str(row.get('지원대상', '')):
+                continue
+            if field_filter and field_filter not in str(row.get('지원분야(대)', '')):
+                continue
+            filter_score = 0.0
+            if region_filter:
+                filter_score += region_weight
+            if target_filter:
+                filter_score += target_weight
+            if field_filter:
+                filter_score += field_weight
+            final_score = sim_scores[idx] + filter_score
+            if final_score >= similarity_threshold:
+                results.append({
+                    'title': row.get('title(공고명)', ''),
+                    'body': row.get('body text (공고내용)', ''),
+                    'target': row.get('지원대상', ''),
+                    'organization': row.get('소관기관', ''),
+                    'field_major': row.get('지원분야(대)', ''),
+                    'field_minor': row.get('지원분야(중)', ''),
+                    'executing_org': row.get('사업수행기관', ''),
+                    'contact': row.get('문의처', ''),
+                    'period': row.get('신청기간', ''),
+                    'application_method': row.get('사업신청방법설명', ''),
+                    'similarity_score': final_score
+                })
+            if len(results) >= top_k:
+                break
+        return results
     
     def get_policy_summary(self, query: str) -> str:
         """정책 요약 정보 생성"""

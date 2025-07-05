@@ -12,7 +12,7 @@ def initialize_chatbot():
         chatbot = PolicyChatbot()
     return "✅ 챗봇이 준비되었습니다!"
 
-def search_policies(query, top_k=5):
+def search_policies(query, top_k=5, similarity_threshold=0.0):
     """정책 검색"""
     global chatbot
     if chatbot is None:
@@ -22,7 +22,7 @@ def search_policies(query, top_k=5):
         return "❌ 검색어를 입력해주세요."
     
     try:
-        results = chatbot.search_policies(query, top_k=int(top_k))
+        results = chatbot.search_policies(query, top_k=int(top_k), similarity_threshold=float(similarity_threshold))
         
         if not results:
             return f"😔 '{query}'에 대한 관련 정책을 찾을 수 없습니다."
@@ -124,6 +124,14 @@ with gr.Blocks(title="🏛️ 정책 챗봇", theme=gr.themes.Soft()) as demo:
                     label="검색 결과 수"
                 )
                 
+                similarity_slider = gr.Slider(
+                    minimum=0.0,
+                    maximum=1.0,
+                    value=0.0,
+                    step=0.1,
+                    label="유사도 임계값 (높을수록 정확한 결과만)"
+                )
+                
             with gr.Column(scale=1):
                 init_btn = gr.Button("🚀 챗봇 초기화", variant="secondary")
                 init_output = gr.Textbox(label="초기화 상태", interactive=False)
@@ -173,7 +181,7 @@ with gr.Blocks(title="🏛️ 정책 챗봇", theme=gr.themes.Soft()) as demo:
     
     search_btn.click(
         search_policies,
-        inputs=[query_input, top_k_slider],
+        inputs=[query_input, top_k_slider, similarity_slider],
         outputs=search_output
     )
     
