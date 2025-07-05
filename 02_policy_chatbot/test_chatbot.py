@@ -115,18 +115,39 @@ def interactive_test():
         
         while True:
             query = input("\n🔍 검색어를 입력하세요: ").strip()
-            
             if query.lower() in ['quit', 'exit', '종료']:
                 print("👋 테스트를 종료합니다.")
                 break
-            
             if not query:
                 print("❌ 검색어를 입력해주세요.")
                 continue
-            
+            region_filter = input("지역명(예: 전국, 경기도, 포천시, 엔터시 전체): ").strip()
+            if not region_filter:
+                region_filter = None
+            target_filter = input("지원대상(예: 소상공인, 엔터시 전체): ").strip()
+            if not target_filter:
+                target_filter = None
+            field_filter = input("지원분야(예: 창업, 엔터시 전체): ").strip()
+            if not field_filter:
+                field_filter = None
+            try:
+                target_weight = float(input("지원대상 가중치(0~1, 엔터시 0.2): ").strip() or 0.2)
+            except ValueError:
+                target_weight = 0.2
+            try:
+                field_weight = float(input("지원분야 가중치(0~1, 엔터시 0.2): ").strip() or 0.2)
+            except ValueError:
+                field_weight = 0.2
             print("🔍 검색 중...")
-            results = chatbot.search_policies(query, top_k=3)
-            
+            results = chatbot.search_policies(
+                query,
+                top_k=5,
+                region_filter=region_filter,
+                target_filter=target_filter,
+                field_filter=field_filter,
+                target_weight=target_weight,
+                field_weight=field_weight
+            )
             if results:
                 print(f"\n✅ '{query}'에 대한 {len(results)}개의 정책을 찾았습니다!")
                 for i, result in enumerate(results, 1):

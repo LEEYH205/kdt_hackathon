@@ -64,25 +64,20 @@ def main():
     # 사이드바
     with st.sidebar:
         st.header("🔧 설정")
-        
-        # 검색 옵션
         top_k = st.slider("검색 결과 수", min_value=1, max_value=10, value=5)
         similarity_threshold = st.slider("유사도 임계값 (높을수록 정확한 결과만)", 0.0, 1.0, 0.0, 0.05)
         
-        # 필터 옵션
         st.subheader("📊 필터")
-        # 지역명, 지원대상, 지원분야 셀렉트박스
-        region_options = ["경기도", "서울특별시", "부산광역시", "인천광역시", "대구광역시", "광주광역시", "대전광역시", "울산광역시", "세종특별자치시", "강원도", "충청북도", "충청남도", "전라북도", "전라남도", "경상북도", "경상남도", "제주특별자치도"]
-        region_filter = st.selectbox("지역명", ["(전체)"] + region_options)
-
+        # 지역명을 텍스트 입력창으로 변경 (하위분류 포함)
+        region_filter = st.text_input("지역명 (예: 포천시 → 포천시+경기도+전국 정책 검색)", placeholder="전체 검색시 비워두세요")
+        if not region_filter:
+            region_filter = None
         target_options = ["중소기업", "소상공인", "창업벤처"]
         target_filter = st.selectbox("지원대상", ["(전체)"] + target_options)
-
         field_options = ["기술", "경영", "수출", "창업", "내수"]
         field_filter = st.selectbox("지원분야", ["(전체)"] + field_options)
 
         st.subheader("⚖️ 필터 가중치 설정")
-        region_weight = st.slider("지역명 가중치", 0.0, 1.0, 0.3, 0.05)
         target_weight = st.slider("지원대상 가중치", 0.0, 1.0, 0.2, 0.05)
         field_weight = st.slider("지원분야 가중치", 0.0, 1.0, 0.2, 0.05)
         
@@ -167,7 +162,6 @@ def main():
                         region_filter=region_filter if region_filter != "(전체)" else None,
                         target_filter=target_filter if target_filter != "(전체)" else None,
                         field_filter=field_filter if field_filter != "(전체)" else None,
-                        region_weight=region_weight,
                         target_weight=target_weight,
                         field_weight=field_weight
                     )

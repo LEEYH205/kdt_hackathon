@@ -9,7 +9,7 @@ import re
 from numpy.linalg import norm
 
 class PolicyChatbot:
-    def __init__(self, csv_path: str = "gyeonggi_smallbiz_policies_500_소상공인,경기_20250704.csv", model_name: str = "sentence-transformers/xlm-r-100langs-bert-base-nli-stsb-mean-tokens"):
+    def __init__(self, csv_path: str = "gyeonggi_smallbiz_policies_2000_소상공인,경기_20250705.csv", model_name: str = "sentence-transformers/xlm-r-100langs-bert-base-nli-stsb-mean-tokens"):
         """
         정책 챗봇 초기화
         
@@ -28,6 +28,86 @@ class PolicyChatbot:
         self._load_data()
         self._initialize_model()
         self._create_embeddings()
+        
+        # 지역 계층 구조 정의
+        self.region_hierarchy = {
+            # 전국, 서울, 경기만
+            # 경기도 하위 지역들
+            "포천시": ["포천시", "경기도", "전국"],
+            "가평군": ["가평군", "경기도", "전국"],
+            "양평군": ["양평군", "경기도", "전국"],
+            "여주시": ["여주시", "경기도", "전국"],
+            "이천시": ["이천시", "경기도", "전국"],
+            "용인시": ["용인시", "경기도", "전국"],
+            "안성시": ["안성시", "경기도", "전국"],
+            "평택시": ["평택시", "경기도", "전국"],
+            "오산시": ["오산시", "경기도", "전국"],
+            "안산시": ["안산시", "경기도", "전국"],
+            "시흥시": ["시흥시", "경기도", "전국"],
+            "군포시": ["군포시", "경기도", "전국"],
+            "의왕시": ["의왕시", "경기도", "전국"],
+            "안양시": ["안양시", "경기도", "전국"],
+            "과천시": ["과천시", "경기도", "전국"],
+            "광명시": ["광명시", "경기도", "전국"],
+            "부천시": ["부천시", "경기도", "전국"],
+            "김포시": ["김포시", "경기도", "전국"],
+            "고양시": ["고양시", "경기도", "전국"],
+            "파주시": ["파주시", "경기도", "전국"],
+            "연천군": ["연천군", "경기도", "전국"],
+            "동두천시": ["동두천시", "경기도", "전국"],
+            "의정부시": ["의정부시", "경기도", "전국"],
+            "남양주시": ["남양주시", "경기도", "전국"],
+            "구리시": ["구리시", "경기도", "전국"],
+            "하남시": ["하남시", "경기도", "전국"],
+            "성남시": ["성남시", "경기도", "전국"],
+            "수원시": ["수원시", "경기도", "전국"],
+            # 서울특별시 하위 지역들
+            "강남구": ["강남구", "서울특별시", "전국"],
+            "강동구": ["강동구", "서울특별시", "전국"],
+            "강북구": ["강북구", "서울특별시", "전국"],
+            "강서구": ["강서구", "서울특별시", "전국"],
+            "관악구": ["관악구", "서울특별시", "전국"],
+            "광진구": ["광진구", "서울특별시", "전국"],
+            "구로구": ["구로구", "서울특별시", "전국"],
+            "금천구": ["금천구", "서울특별시", "전국"],
+            "노원구": ["노원구", "서울특별시", "전국"],
+            "도봉구": ["도봉구", "서울특별시", "전국"],
+            "동대문구": ["동대문구", "서울특별시", "전국"],
+            "동작구": ["동작구", "서울특별시", "전국"],
+            "마포구": ["마포구", "서울특별시", "전국"],
+            "서대문구": ["서대문구", "서울특별시", "전국"],
+            "서초구": ["서초구", "서울특별시", "전국"],
+            "성동구": ["성동구", "서울특별시", "전국"],
+            "성북구": ["성북구", "서울특별시", "전국"],
+            "송파구": ["송파구", "서울특별시", "전국"],
+            "양천구": ["양천구", "서울특별시", "전국"],
+            "영등포구": ["영등포구", "서울특별시", "전국"],
+            "용산구": ["용산구", "서울특별시", "전국"],
+            "은평구": ["은평구", "서울특별시", "전국"],
+            "종로구": ["종로구", "서울특별시", "전국"],
+            "중구": ["중구", "서울특별시", "전국"],
+            "중랑구": ["중랑구", "서울특별시", "전국"],
+            # 상위 지역들
+            "경기도": ["경기도", "전국"],
+            "서울특별시": ["서울특별시", "전국"],
+            "부산광역시": ["부산광역시", "전국"],
+            "인천광역시": ["인천광역시", "전국"],
+            "대구광역시": ["대구광역시", "전국"],
+            "광주광역시": ["광주광역시", "전국"],
+            "대전광역시": ["대전광역시", "전국"],
+            "울산광역시": ["울산광역시", "전국"],
+            "세종특별자치시": ["세종특별자치시", "전국"],
+            "강원도": ["강원도", "전국"],
+            "충청북도": ["충청북도", "전국"],
+            "충청남도": ["충청남도", "전국"],
+            "전라북도": ["전라북도", "전국"],
+            "전라남도": ["전라남도", "전국"],
+            "경상북도": ["경상북도", "전국"],
+            "경상남도": ["경상남도", "전국"],
+            "제주특별자치도": ["제주특별자치도", "전국"],
+            # 최상위 지역
+            "전국": ["전국"]
+        }
         
     def _load_data(self):
         """CSV 데이터 로드 및 전처리"""
@@ -118,16 +198,27 @@ class PolicyChatbot:
         results = []
         for idx in sorted_idx:
             row = self.data.iloc[idx]
-            # 하드 필터 적용
-            if region_filter and region_filter not in str(row.get('소관기관', '')):
-                continue
+            # 하드 필터 적용 (지역: 정책명/본문에 지역명 명시 여부까지 반영)
+            if region_filter:
+                org = str(row.get('소관기관', ''))
+                title = str(row.get('title(공고명)', ''))
+                body = str(row.get('body_text(공고내용)', ''))
+                # 1. 소관기관이 region_filter(포천시)면 무조건 포함
+                if org == region_filter:
+                    pass
+                # 2. 소관기관이 region_filter의 상위(경기도) 또는 전국이면, title/body에 region_filter가 명시되어야 포함
+                elif region_filter in self.region_hierarchy and org in self.region_hierarchy[region_filter][1:]:
+                    if region_filter not in title and region_filter not in body:
+                        continue
+                # 3. 그 외(다른 시/군)는 제외
+                else:
+                    continue
             if target_filter and target_filter not in str(row.get('지원대상', '')):
                 continue
             if field_filter and field_filter not in str(row.get('지원분야(대)', '')):
                 continue
             filter_score = 0.0
-            if region_filter:
-                filter_score += region_weight
+            # 지역명 가중치 제거 (region_weight 관련 코드 삭제)
             if target_filter:
                 filter_score += target_weight
             if field_filter:
@@ -136,7 +227,7 @@ class PolicyChatbot:
             if final_score >= similarity_threshold:
                 results.append({
                     'title': row.get('title(공고명)', ''),
-                    'body': row.get('body text (공고내용)', ''),
+                    'body': row.get('body_text(공고내용)', ''),
                     'target': row.get('지원대상', ''),
                     'organization': row.get('소관기관', ''),
                     'field_major': row.get('지원분야(대)', ''),

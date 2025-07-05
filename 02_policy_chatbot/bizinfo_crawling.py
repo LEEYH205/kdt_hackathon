@@ -3,12 +3,13 @@ from datetime import datetime
 
 URL = "https://www.bizinfo.go.kr/uss/rss/bizinfoApi.do"
 params = {
-    "crtfcKey": "FFxycB",           # ← 발급받으신 키
+    "crtfcKey": "FFxycB",
     "dataType": "json",
-    "searchCnt": 500,
+    "searchCnt": 2000,
     "hashtags": "소상공인,경기",
 }
 def clean_html(text):
+    text = text or ""
     text = re.sub(r'(<br\s*/?>|</?p>)', '\n', text)
     text = re.sub(r'<[^>]*>', '', text)
     return html.unescape(re.sub(r'\s+', ' ', text)).strip()
@@ -39,8 +40,8 @@ except json.JSONDecodeError as e:
 rows = []
 for it in items:
     rows.append({
-        "title": it.get("pblancNm"),
-        "body text": clean_html(it.get("bsnsSumryCn", "")),
+        "title(공고명)": it.get("pblancNm"),
+        "body_text(공고내용)": clean_html(it.get("bsnsSumryCn", "")),
         "지원대상": it.get("trgetNm"),
         "소관기관": it.get("jrsdInsttNm"),
         "지원분야(대)": it.get("pldirSportRealmLclasCodeNm"),
