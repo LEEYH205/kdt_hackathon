@@ -3,7 +3,7 @@ import pandas as pd, numpy as np, faiss, re
 from sentence_transformers import SentenceTransformer
 
 # ---------- 1. 데이터 & 전처리 ----------
-df = pd.read_csv("./data/ideas_sample.csv").fillna("")
+df = pd.read_csv("./data/ideas_sample_1000.csv").fillna("")
 def clean(txt): return re.sub(r"\s+", " ", re.sub(r"[^\w가-힣 ]", " ", txt)).strip().lower()
 df["clean"] = df["title"] + " " + df["body"]
 df["clean"] = df["clean"].apply(clean)
