@@ -9,7 +9,7 @@ import re
 from numpy.linalg import norm
 
 class PolicyChatbot:
-    def __init__(self, csv_path: str = "gyeonggi_smallbiz_policies_2000_소상공인,경기_20250705.csv", model_name: str = "sentence-transformers/xlm-r-100langs-bert-base-nli-stsb-mean-tokens"):
+    def __init__(self, csv_path: str = "./data/gyeonggi_smallbiz_policies_2000_소상공인,경기_20250705.csv", model_name: str = "sentence-transformers/xlm-r-100langs-bert-base-nli-stsb-mean-tokens"):
         """
         정책 챗봇 초기화
         
