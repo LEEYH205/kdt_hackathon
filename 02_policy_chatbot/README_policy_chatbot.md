@@ -10,12 +10,13 @@ Sentence Transformers 임베딩 + FAISS 벡터 검색을 활용하여,
 - **🔍 자연어 검색**: 키워드나 문장으로 정책 검색
 - **📊 유사도 기반 매칭**: Sentence Transformers를 활용한 정확한 검색
 - **📱 웹 인터페이스**: Streamlit과 Gradio를 통한 사용자 친화적 UI
+- **🌐 REST API**: FastAPI 기반 RESTful API 서비스
 - **📈 통계 분석**: 정책 데이터 분석 및 시각화
 - **💾 모델 저장/로드**: 학습된 모델의 저장 및 재사용
 
 - **정책 데이터 크롤링 및 CSV 저장**
 - **정책 임베딩 생성 및 FAISS 인덱스 구축**
-- **자연어 검색 (Streamlit/Gradio/CLI)**
+- **자연어 검색 (Streamlit/Gradio/CLI/API)**
 - **지역명, 지원대상, 지원분야 등 다양한 필터 및 가중치 설정**
 - **지역 계층 구조(예: 포천시 → 경기도 → 전국) 기반 검색**
 - **정책명/본문에 특정 지역명 포함 여부까지 정밀 필터링**
@@ -74,6 +75,27 @@ for result in results:
     print("-" * 30)
 ```
 
+#### E. REST API 서버
+```bash
+# API 서버 실행
+python run_api.py
+
+# 또는 개발 모드로 실행
+python run_api.py --reload
+
+# 다른 포트로 실행
+python run_api.py --port 8080
+```
+
+#### F. API 클라이언트 테스트
+```bash
+# 자동 테스트
+python api_client.py
+
+# 대화형 테스트
+python api_client.py interactive
+```
+
 ## 🏗️ 시스템 구조
 
 ```
@@ -81,6 +103,9 @@ kdt_hackathon/
 ├── policy_chatbot.py          # 핵심 챗봇 클래스
 ├── streamlit_app.py           # Streamlit 웹 인터페이스
 ├── gradio_app.py              # Gradio 웹 인터페이스
+├── api_server.py              # FastAPI REST 서버
+├── api_client.py              # API 클라이언트 테스트
+├── run_api.py                 # API 서버 실행 스크립트
 ├── test_chatbot.py            # 테스트 스크립트
 ├── requirements.txt           # 의존성 목록
 ├── data/
@@ -91,9 +116,10 @@ kdt_hackathon/
 ## 🔧 기술 스택
 
 - **AI/ML**: Sentence Transformers, FAISS
-- **웹 프레임워크**: Streamlit, Gradio
+- **웹 프레임워크**: Streamlit, Gradio, FastAPI
 - **데이터 처리**: Pandas, NumPy
 - **검색 엔진**: FAISS (Facebook AI Similarity Search)
+- **API**: FastAPI, Uvicorn, Pydantic
 - **언어**: Python 3.8+
 
 ## 📊 주요 기능 상세
@@ -119,6 +145,13 @@ kdt_hackathon/
 - 소관기관별 분포
 - 지원분야별 분포
 - 시각화 차트
+
+### 5. REST API
+- FastAPI 기반 RESTful API
+- 자동 문서화 (Swagger/ReDoc)
+- JSON 기반 요청/응답
+- CORS 지원
+- 헬스 체크 엔드포인트
 
 ## 🎯 사용 예시
 
@@ -153,6 +186,159 @@ chatbot.save_model("my_model.pkl")
 
 # 모델 로드
 chatbot.load_model("my_model.pkl")
+```
+
+### REST API 사용 예시
+
+#### 1. 헬스 체크
+```bash
+curl http://localhost:8000/health
+```
+
+#### 2. 간단한 검색 (GET)
+```bash
+curl "http://localhost:8000/search/simple?query=중소기업%20기술지원&top_k=3"
+```
+
+#### 3. 상세 검색 (POST)
+```bash
+curl -X POST "http://localhost:8000/search" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "창업 지원",
+    "top_k": 5,
+    "region_filter": "포천시",
+    "similarity_threshold": 0.1
+  }'
+```
+
+#### 4. 정책 요약
+```bash
+curl -X POST "http://localhost:8000/summary" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "청년 지원"}'
+```
+
+#### 5. 지역 목록 조회
+```bash
+curl http://localhost:8000/regions
+```
+
+#### 6. Python 클라이언트 사용
+```python
+from api_client import PolicyChatbotAPI
+
+# API 클라이언트 초기화
+api = PolicyChatbotAPI("http://localhost:8000")
+
+# 헬스 체크
+health = api.health_check()
+print(f"서버 상태: {health['status']}")
+
+# 정책 검색
+results = api.search_policies(
+    query="중소기업 기술지원",
+    top_k=5,
+    region_filter="포천시"
+)
+
+# 결과 출력
+for result in results['results']:
+    print(f"제목: {result['title']}")
+    print(f"유사도: {result['similarity_score']:.3f}")
+```
+
+## 🌐 API 엔드포인트
+
+### 기본 정보
+- **Base URL**: `http://localhost:8000`
+- **API 문서**: `http://localhost:8000/docs` (Swagger UI)
+- **ReDoc 문서**: `http://localhost:8000/redoc`
+
+### 엔드포인트 목록
+
+#### 1. 헬스 체크
+- **GET** `/health`
+- **설명**: 서버 상태 및 모델 로드 상태 확인
+- **응답**: `HealthResponse`
+
+#### 2. 정책 검색 (POST)
+- **POST** `/search`
+- **설명**: 상세한 필터와 가중치를 사용한 정책 검색
+- **요청**: `SearchRequest`
+- **응답**: `SearchResponse`
+
+#### 3. 정책 검색 (GET)
+- **GET** `/search/simple`
+- **설명**: 간단한 파라미터로 정책 검색
+- **쿼리 파라미터**: `query`, `top_k`, `region`
+- **응답**: `SearchResponse`
+
+#### 4. 정책 요약
+- **POST** `/summary`
+- **설명**: 검색 결과를 요약하여 반환
+- **요청**: `SummaryRequest`
+- **응답**: `SummaryResponse`
+
+#### 5. 지역 목록
+- **GET** `/regions`
+- **설명**: 사용 가능한 지역 목록 반환
+- **응답**: 지역 목록 및 계층 구조
+
+#### 6. 루트
+- **GET** `/`
+- **설명**: API 기본 정보
+- **응답**: API 버전 및 문서 링크
+
+### 데이터 모델
+
+#### SearchRequest
+```json
+{
+  "query": "string",
+  "top_k": 5,
+  "similarity_threshold": 0.0,
+  "region_filter": "string",
+  "target_filter": "string",
+  "field_filter": "string",
+  "region_weight": 0.3,
+  "target_weight": 0.2,
+  "field_weight": 0.2
+}
+```
+
+#### SearchResponse
+```json
+{
+  "query": "string",
+  "total_results": 5,
+  "results": [
+    {
+      "title": "string",
+      "body": "string",
+      "target": "string",
+      "organization": "string",
+      "field_major": "string",
+      "field_minor": "string",
+      "executing_org": "string",
+      "contact": "string",
+      "period": "string",
+      "application_method": "string",
+      "similarity_score": 0.85
+    }
+  ],
+  "filters_applied": {
+    "region_filter": "string",
+    "target_filter": "string",
+    "field_filter": "string",
+    "similarity_threshold": 0.0,
+    "weights": {
+      "region_weight": 0.3,
+      "target_weight": 0.2,
+      "field_weight": 0.2
+    }
+  }
+}
 ```
 
 ## ⚙️ 설정 옵션
