@@ -5,7 +5,7 @@
 *.CSV
 *.pdf
 data/*
-
+*.html
 
 /02_policy_chatbot/policy_chatbot_api/
 
