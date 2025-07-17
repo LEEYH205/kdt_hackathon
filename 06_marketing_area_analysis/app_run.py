@@ -89,45 +89,135 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs(["📈 개요", "🎯 예측 분석", "�
 
 with tab1:
     st.header("📊 포천시 상권 현황 개요")
-    
-    # SWOT 분석
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.subheader("💪 SWOT 분석")
-        st.success("**강점 (Strengths)**")
-        st.write("• 유동인구 증가 추세 (월 평균 8.5% 성장)")
-        st.write("• 매출 성장률 높음 (연 12.3% 성장)")
-        st.write("• 접근성 좋은 교통 인프라")
-        
-        st.error("**약점 (Weaknesses)**")
-        st.write("• 경쟁업체 다수 (편의점, 카페 등)")
-        st.write("• 임대료 상승 추세")
-        st.write("• 인구 밀도 상대적으로 낮음")
-    
-    with col2:
-        st.info("**기회 (Opportunities)**")
-        st.write("• 신규 개발 지역 확장")
-        st.write("• 젊은 인구 유입 증가")
-        st.write("• 온라인-오프라인 연계 상권")
-        
-        st.warning("**위협 (Threats)**")
-        st.write("• 상권 포화 현상")
-        st.write("• 임대료 변동성 증가")
-        st.write("• 온라인 쇼핑 확산")
-    
-    # AI 추천 전략
+
+    # === AI 기반 SWOT 분석 ===
+    st.subheader("💪 AI 기반 SWOT 분석 (자동)")
+    swot_df = df.copy()
+
+    # 성장률/변동성/경쟁도 계산 (전체 기준)
+    swot_df = swot_df.sort_values(['EMD_NM', '연월'])
+    swot_df['유동인구_성장률'] = swot_df.groupby('EMD_NM')['유동인구'].pct_change()
+    growth_mean = swot_df.groupby('EMD_NM')['유동인구_성장률'].mean()
+    growth_std = swot_df.groupby('EMD_NM')['유동인구_성장률'].std()
+    pop_mean = swot_df.groupby('EMD_NM')['유동인구'].mean()
+
+    # NaN 값이 있는 지역은 제외 (교집합 index를 list로 변환)
+    valid_index = list(set(growth_mean.dropna().index) & set(growth_std.dropna().index) & set(pop_mean.dropna().index))
+    growth_mean = growth_mean.loc[valid_index]
+    growth_std = growth_std.loc[valid_index]
+    pop_mean = pop_mean.loc[valid_index]
+
+    # Streamlit sidebar에서 선택된 읍면동 정보 활용
+    selected_emd = st.session_state.get('selected_emd', None)
+    if not selected_emd:
+        selected_emd = df['EMD_NM'].unique().tolist()
+    if isinstance(selected_emd, str):
+        selected_emd = [selected_emd]
+
+    if len(selected_emd) == 1:
+        emd = selected_emd[0]
+        # 해당 읍면동의 수치
+        g = growth_mean.get(emd, None)
+        s = growth_std.get(emd, None)
+        p = pop_mean.get(emd, None)
+        # 전체 분포에서의 위치
+        g_rank = growth_mean.rank(ascending=False)[emd] if g is not None else None
+        s_rank = growth_std.rank(ascending=True)[emd] if s is not None else None
+        p_rank = pop_mean.rank(ascending=False)[emd] if p is not None else None
+        n = len(growth_mean)
+        # SWOT 문장 생성
+        strengths = []
+        weaknesses = []
+        opportunities = []
+        threats = []
+        if g is not None:
+            if g_rank <= n*0.3:
+                strengths.append(f"{emd}은(는) 유동인구 성장률이 {g:.1%}로 전체 상위권입니다.")
+            elif g_rank >= n*0.7:
+                weaknesses.append(f"{emd}은(는) 유동인구 성장률이 {g:.1%}로 전체 하위권입니다.")
+            else:
+                strengths.append(f"{emd}의 유동인구 성장률은 {g:.1%}로 전체 평균 수준입니다.")
+        if s is not None:
+            if s_rank <= n*0.3:
+                opportunities.append(f"{emd}은(는) 유동인구 변동성이 낮아(σ={s:.2%}) 안정적입니다.")
+            elif s_rank >= n*0.7:
+                threats.append(f"{emd}은(는) 유동인구 변동성이 높아(σ={s:.2%}) 불안정할 수 있습니다.")
+            else:
+                opportunities.append(f"{emd}의 유동인구 변동성은 {s:.2%}로 전체 평균 수준입니다.")
+        if p is not None:
+            if p_rank <= n*0.3:
+                threats.append(f"{emd}은(는) 유동인구가 많아 경쟁이 치열할 수 있습니다.")
+            elif p_rank >= n*0.7:
+                opportunities.append(f"{emd}은(는) 유동인구가 적어 신규 진입 기회가 있습니다.")
+            else:
+                opportunities.append(f"{emd}의 유동인구는 전체 평균 수준입니다.")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.success("**강점 (Strengths)**")
+            for s in strengths:
+                st.write(f"- {s}")
+            st.error("**약점 (Weaknesses)**")
+            for w in weaknesses:
+                st.write(f"- {w}")
+        with col2:
+            st.info("**기회 (Opportunities)**")
+            for o in opportunities:
+                st.write(f"- {o}")
+            st.warning("**위협 (Threats)**")
+            for t in threats:
+                st.write(f"- {t}")
+    else:
+        # 기존 전체 랭킹 기반 SWOT
+        top_growth = growth_mean.sort_values(ascending=False).head(3)
+        low_growth = growth_mean.sort_values(ascending=True).head(3)
+        top_var = growth_std.sort_values(ascending=False).head(3)
+        low_var = growth_std.sort_values(ascending=True).head(3)
+        top_pop = pop_mean.sort_values(ascending=False).head(3)
+        low_pop = pop_mean.sort_values(ascending=True).head(3)
+        strengths = [f"{em} 지역 유동인구 성장률 상위 ({gr:.1%})" for em, gr in top_growth.items()]
+        weaknesses = [f"{em} 지역 유동인구 성장률 하위 ({gr:.1%})" for em, gr in low_growth.items()]
+        opportunities = [f"{em} 지역 유동인구 변동성 낮음 (안정적)" for em in low_var.index]
+        threats = [f"{em} 지역 유동인구 변동성 높음 (불안정)" for em in top_var.index]
+        threats += [f"{em} 지역 유동인구 많아 경쟁 치열" for em in top_pop.index]
+        opportunities += [f"{em} 지역 유동인구 적어 신규 진입 기회" for em in low_pop.index]
+        col1, col2 = st.columns(2)
+        with col1:
+            st.success("**강점 (Strengths)**")
+            for s in strengths:
+                st.write(f"- {s}")
+            st.error("**약점 (Weaknesses)**")
+            for w in weaknesses:
+                st.write(f"- {w}")
+        with col2:
+            st.info("**기회 (Opportunities)**")
+            for o in opportunities:
+                st.write(f"- {o}")
+            st.warning("**위협 (Threats)**")
+            for t in threats:
+                st.write(f"- {t}")
+
+    st.markdown("---")
     st.subheader("🤖 AI 추천 전략")
-    st.info("""
-    **창업 추천 지역**: 경쟁이 덜한 지역에 개인카페 창업 추천
-    **차별화 전략**: 지역 특색을 살린 테마 카페 운영
-    **마케팅 전략**: 유동인구 패턴을 활용한 타겟 마케팅
-    **위험 관리**: 임대료 변동에 대비한 수익성 분석
-    """)
+    st.info("AI 기반 SWOT 분석 결과를 바탕으로 창업/마케팅 전략을 자동 추천합니다. (예: 성장률 상위 지역 우선 공략, 변동성 낮은 지역 안정적 진입 등)")
 
 with tab2:
     st.header("🎯 GNN 기반 유동인구 예측 분석")
-    
+
+    # ===== 데이터 전처리 (NaN/0/음수 제거) =====
+    filtered_df = filtered_df.dropna(subset=['실제유동인구', '예측유동인구'])
+    filtered_df = filtered_df[(filtered_df['실제유동인구'] > 0) & (filtered_df['예측유동인구'] > 0)]
+
+    # ===== 예측오차 계산 (분모 0 방지) =====
+    filtered_df['예측오차'] = abs(filtered_df['실제유동인구'] - filtered_df['예측유동인구']) / filtered_df['실제유동인구'] * 100
+    filtered_df = filtered_df.dropna(subset=['예측오차'])
+
+    # ===== 데이터 상태 출력 (디버깅용) =====
+    st.write("데이터 행 수:", len(filtered_df))
+    st.write(filtered_df[['연월', 'EMD_NM', '실제유동인구', '예측유동인구', '예측오차']].head())
+
+    if len(filtered_df) < 5:
+        st.warning("선택된 데이터가 너무 적어 그래프가 정상적으로 표시되지 않을 수 있습니다.")
+
     # 예측 vs 실제 산점도
     fig = px.scatter(
         filtered_df,
@@ -138,30 +228,26 @@ with tab2:
         hover_data=['연월', 'EMD_NM'],
         title="GNN 기반 유동인구 예측 vs 실제"
     )
-    
     # 완벽한 예측선 추가
-    min_val = min(filtered_df['실제유동인구'].min(), filtered_df['예측유동인구'].min())
-    max_val = max(filtered_df['실제유동인구'].max(), filtered_df['예측유동인구'].max())
-    fig.add_trace(
-        go.Scatter(
-            x=[min_val, max_val],
-            y=[min_val, max_val],
-            mode='lines',
-            name='Perfect Prediction',
-            line=dict(color='red', dash='dash')
+    if len(filtered_df) > 0:
+        min_val = min(filtered_df['실제유동인구'].min(), filtered_df['예측유동인구'].min())
+        max_val = max(filtered_df['실제유동인구'].max(), filtered_df['예측유동인구'].max())
+        fig.add_trace(
+            go.Scatter(
+                x=[min_val, max_val],
+                y=[min_val, max_val],
+                mode='lines',
+                name='Perfect Prediction',
+                line=dict(color='red', dash='dash')
+            )
         )
-    )
-    
     st.plotly_chart(fig, use_container_width=True)
-    
+
     # 예측 정확도 분석
     col1, col2 = st.columns(2)
-    
+
     with col1:
         # 예측 오차 분포
-        filtered_df = filtered_df.copy()
-        filtered_df.loc[:, '예측오차'] = abs(filtered_df['실제유동인구'] - filtered_df['예측유동인구']) / filtered_df['실제유동인구'] * 100
-        
         fig = px.histogram(
             filtered_df,
             x='예측오차',
@@ -169,19 +255,20 @@ with tab2:
             title="예측 오차 분포 (%)"
         )
         st.plotly_chart(fig, use_container_width=True)
-    
+
     with col2:
         # 지역별 예측 정확도
-        accuracy_by_region = filtered_df.groupby('EMD_NM')['예측오차'].mean()
-        accuracy_by_region = accuracy_by_region.sort_values()
-        
-        fig = px.bar(
-            x=accuracy_by_region.values,
-            y=accuracy_by_region.index,
-            orientation='h',
-            title="지역별 예측 정확도 (오차율 낮을수록 정확)"
-        )
-        st.plotly_chart(fig, use_container_width=True)
+        if '예측오차' in filtered_df.columns:
+            accuracy_by_region = filtered_df.groupby('EMD_NM')['예측오차'].mean().sort_values()
+            fig = px.bar(
+                x=accuracy_by_region.values,
+                y=accuracy_by_region.index,
+                orientation='h',
+                title="지역별 예측 정확도 (오차율 낮을수록 정확)"
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("예측오차 데이터가 없습니다.")
 
 with tab3:
     st.header("💰 매출 분석")

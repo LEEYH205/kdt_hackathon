@@ -8,7 +8,7 @@ data/*
 *.html
 
 /02_policy_chatbot/policy_chatbot_api/
-
+/04_1_idea_similarity_api/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
